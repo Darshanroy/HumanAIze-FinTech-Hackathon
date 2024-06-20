@@ -24,6 +24,21 @@ os.environ['HUGGINGFACEHUB_API_TOKEN'] = os.getenv('HUGGINGFACEHUB_API_TOKEN')
 # Streamlit app title
 st.title("LAW QA System with RAG and HYDE")
 
+# List of document types without the "documents_" prefix
+options = [
+    "sexual_assault",
+    "robbery",
+    "rape",
+    "property",
+    "divorce",
+    "corruption"
+]
+
+# Create the dropdown menu
+selected_option = st.selectbox('Select a document type:', options)
+
+
+
 # Initialize embeddings and models
 embeddings = HuggingFaceEndpointEmbeddings(
     model="sentence-transformers/all-MiniLM-L6-v2",
@@ -55,19 +70,24 @@ I will tip you $1000 if the user finds the answer helpful.
 Question: {input}
 """)
 
-def prepare_vector_store(hyde_embeddings):
+#---------------------------------------------------------------------
+
+
+def prepare_vector_store(hyde_embeddings,selected_option):
     """Prepares the vector store database by loading documents and creating embeddings."""
     st.session_state.embeddings = hyde_embeddings
     if "vector_store" not in st.session_state:
-        file_path = "./chroma"
+        file_path = f"./chroma_{selected_option}"
         if os.path.exists(file_path):
-            st.session_state.vector_store = Chroma(persist_directory="./chroma", embedding_function=hyde_embeddings)
+            st.session_state.vector_store = Chroma(persist_directory=f"./chroma_{selected_option}", embedding_function=hyde_embeddings)
+
+
         else: 
-            loader = PyPDFDirectoryLoader(r"crime data\murder")
+            loader = PyPDFDirectoryLoader(f"CRIME-DATASETS/{file_path}")
             st.session_state.docs = loader.load()
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=330, chunk_overlap=20)
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=40)
             final_documents = text_splitter.split_documents(st.session_state.docs)
-            st.session_state.vector_store = Chroma.from_documents(final_documents[:10000], hyde_embeddings,persist_directory="./chroma")
+            st.session_state.vector_store = Chroma.from_documents(final_documents[:10000], hyde_embeddings,persist_directory=f"./chroma_{selected_option}")
 
 # Define the contextualization prompt for reformulating questions based on chat history
 contextualize_q_prompt = ChatPromptTemplate.from_messages(
@@ -141,7 +161,8 @@ def process_question(user_question, session_id, llm, vector_store, qa_prompt_tem
 
 # Button to initialize document embedding
 if st.button("Initialize Document Embedding"):
-    prepare_vector_store(hyde_embeddings)
+
+    prepare_vector_store(hyde_embeddings,selected_option)
     st.write("Vector store database is ready")
 
 # User input for the question
